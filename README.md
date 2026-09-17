@@ -41,6 +41,10 @@ Is score > high score?
 - **Shop**: `Remove Ads` and `Golden Balloons` (golden balloons are worth more coins) are one-time purchases, persisted in `localStorage`.
 - **Ads**: a mid-game ad break plays after each run via the CrazyGames SDK (or a simulated fallback), unless `Remove Ads` is owned.
 
+## CrazyGames SDK safety
+
+When the domain isn't registered with CrazyGames (e.g. testing locally via `file://`), the SDK reports `environment: "disabled"` and throws (e.g. `sdkDisabled`, `sdkNotInitialized`) just from **accessing** a namespace like `CG.game.gameplayStart`, not only from calling it. Every SDK interaction in [game.js](game.js) goes through the `cg()` helper, which wraps both the property access and the call in a single try/catch, so this optional integration can never break the render loop or block gameplay. If you add a new SDK call, wrap it the same way (see existing `cg(() => { ... })` call sites).
+
 ## Persistence keys (`localStorage`)
 
 - `balloonPop_highscore`
