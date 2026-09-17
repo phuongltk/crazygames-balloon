@@ -1,25 +1,22 @@
 (() => {
   "use strict";
 
-  // ---------- CrazyGames SDK (optional, safe if absent) ----------
-  const CG =
-    window.CrazyGames && window.CrazyGames.SDK ? window.CrazyGames.SDK : null;
-
-  // The SDK can throw synchronously just from accessing a namespace/method
-  // (e.g. "sdkDisabled" when running outside the CrazyGames platform, such
-  // as local file:// testing), so both the property access and the call
-  // must happen inside the try — every SDK interaction goes through this.
-  function cg(fn) {
-    try {
-      fn();
-    } catch {
-      // ignore — SDK integration is optional
-    }
-  }
-
-  cg(() => {
-    if (CG && CG.init) CG.init().catch(() => {});
-  });
+  // ---------- CrazyGames SDK ----------
+  // See cg-integration.js — a reusable wrapper that guarantees SDK calls
+  // can never throw into gameplay code. Falls back to no-ops if that
+  // script isn't loaded, so this file stays safe standalone too.
+  const CrazySDK = window.CrazySDK || {
+    loadingStart() {},
+    loadingStop() {},
+    gameplayStart() {},
+    gameplayStop() {},
+    hasAdApi() {
+      return false;
+    },
+    requestAd() {
+      return Promise.resolve();
+    },
+  };
 
   // ---------- Persistence ----------
   const STORAGE = {
@@ -325,9 +322,7 @@
     hudEl.classList.remove("hidden");
     showScreen(null);
     lastTime = performance.now();
-    cg(() => {
-      if (CG && CG.game && CG.game.gameplayStart) CG.game.gameplayStart();
-    });
+    CrazySDK.gameplayStart();
     if (!rafId) rafId = requestAnimationFrame(loop);
   }
 
@@ -339,9 +334,7 @@
       saveHighscore();
     }
     saveCoins();
-    cg(() => {
-      if (CG && CG.game && CG.game.gameplayStop) CG.game.gameplayStop();
-    });
+    CrazySDK.gameplayStop();
     finalScoreEl.textContent = score;
     finalHighscoreEl.textContent = highscore;
     coinsEarnedLineEl.textContent = `+${coinsEarnedThisRun} 🪙 earned`;
@@ -353,23 +346,12 @@
       onDone();
       return;
     }
-    let usedSdkAd = false;
-    try {
-      if (CG && CG.ad && CG.ad.requestAd) {
-        usedSdkAd = true;
-        state = STATE.AD;
-        showScreen(null);
-        CG.ad
-          .requestAd("midgame")
-          .catch(() => {})
-          .finally(() => {
-            onDone();
-          });
-      }
-    } catch {
-      usedSdkAd = false;
+    if (CrazySDK.hasAdApi()) {
+      state = STATE.AD;
+      showScreen(null);
+      CrazySDK.requestAd("midgame").then(onDone);
+      return;
     }
-    if (usedSdkAd) return;
     // Fallback simulated ad break
     state = STATE.AD;
     showScreen(adScreen);
@@ -396,9 +378,7 @@
     if (state !== STATE.PLAYING) return;
     state = STATE.PAUSED;
     showScreen(pauseScreen);
-    cg(() => {
-      if (CG && CG.game && CG.game.gameplayStop) CG.game.gameplayStop();
-    });
+    CrazySDK.gameplayStop();
   }
 
   function resumeGame() {
@@ -406,9 +386,7 @@
     state = STATE.PLAYING;
     showScreen(null);
     lastTime = performance.now();
-    cg(() => {
-      if (CG && CG.game && CG.game.gameplayStart) CG.game.gameplayStart();
-    });
+    CrazySDK.gameplayStart();
   }
 
   function quitToMenu() {
@@ -503,12 +481,6 @@
   menuHighscoreEl.textContent = highscore;
   menuCoinsEl.textContent = coins;
   showScreen(menuScreen);
-  cg(() => {
-    if (CG && CG.game && CG.game.sdkGameLoadingStart)
-      CG.game.sdkGameLoadingStart();
-  });
-  cg(() => {
-    if (CG && CG.game && CG.game.sdkGameLoadingStop)
-      CG.game.sdkGameLoadingStop();
-  });
+  CrazySDK.loadingStart();
+  CrazySDK.loadingStop();
 })();
