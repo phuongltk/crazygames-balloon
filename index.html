@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Balloon Pop</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="app">
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HUD (visible during play) -->
+  <div id="hud" class="hidden">
+    <div class="hud-left">
+      <span class="hud-icon">⭐</span><span id="scoreValue">0</span>
+    </div>
+    <div class="hud-right">
+      <span class="hud-icon">❤️</span><span id="livesValue">3</span>
+      <span class="hud-icon coin-icon">🪙</span><span id="coinsValue">0</span>
+      <button id="pauseBtn" class="icon-btn" aria-label="Pause">⏸</button>
+    </div>
+  </div>
+
+  <!-- Main Menu -->
+  <div id="menuScreen" class="screen">
+    <h1 class="title">🎈 Balloon Pop</h1>
+    <p class="subtitle">Pop the balloons. Dodge the bombs.</p>
+    <div class="stat-row">
+      <div class="stat-box">Highscore<br /><span id="menuHighscore">0</span></div>
+      <div class="stat-box">Coins<br /><span id="menuCoins">0</span></div>
+    </div>
+    <button id="playBtn" class="btn btn-primary">Play</button>
+    <button id="shopBtn" class="btn">Shop</button>
+  </div>
+
+  <!-- Pause Screen -->
+  <div id="pauseScreen" class="screen hidden">
+    <h2>Paused</h2>
+    <button id="resumeBtn" class="btn btn-primary">Resume</button>
+    <button id="quitBtn" class="btn">Quit to Menu</button>
+  </div>
+
+  <!-- Game Over Screen -->
+  <div id="gameOverScreen" class="screen hidden">
+    <h2>Game Over</h2>
+    <div class="stat-row">
+      <div class="stat-box">Score<br /><span id="finalScore">0</span></div>
+      <div class="stat-box">Best<br /><span id="finalHighscore">0</span></div>
+    </div>
+    <p id="coinsEarnedLine">+0 🪙 earned</p>
+    <button id="retryBtn" class="btn btn-primary">Play Again</button>
+    <button id="menuBtn" class="btn">Menu</button>
+  </div>
+
+  <!-- Shop Screen -->
+  <div id="shopScreen" class="screen hidden">
+    <h2>Shop</h2>
+    <div class="stat-row">
+      <div class="stat-box">Coins<br /><span id="shopCoins">0</span></div>
+    </div>
+    <div id="shopList" class="shop-list"></div>
+    <button id="closeShopBtn" class="btn">Back</button>
+  </div>
+
+  <!-- Ad Break Screen -->
+  <div id="adScreen" class="screen hidden">
+    <h2>Advertisement</h2>
+    <p>Your game will resume shortly...</p>
+    <div id="adTimer">5</div>
+    <button id="adSkipBtn" class="btn btn-primary hidden">Continue</button>
+  </div>
+</div>
+
+<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
