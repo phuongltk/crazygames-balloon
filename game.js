@@ -3,8 +3,24 @@
 
   // ---------- CrazyGames SDK (optional, safe if absent) ----------
   const CG = window.CrazyGames && window.CrazyGames.SDK ? window.CrazyGames.SDK : null;
+
+  // The SDK throws synchronously (e.g. "sdkNotInitialized") when running
+  // outside the CrazyGames platform (local file://, disabled environment),
+  // so every call is wrapped to guarantee it can never break gameplay.
+  function cg(fn) {
+    try {
+      fn();
+    } catch {
+      // ignore — SDK integration is optional
+    }
+  }
+
   if (CG && CG.init) {
-    CG.init().catch(() => {});
+    try {
+      CG.init().catch(() => {});
+    } catch {
+      // ignore
+    }
   }
 
   // ---------- Persistence ----------
@@ -52,13 +68,6 @@
       cost: 150,
       oneTime: true,
     },
-    {
-      id: 'extraLife',
-      name: 'Extra Starting Life',
-      desc: 'Start every run with +1 life (max 5).',
-      cost: 300,
-      oneTime: true,
-    },
   ];
 
   function renderShop() {
@@ -94,17 +103,13 @@
     }
   }
 
-  function startingLives() {
-    return owned.extraLife ? 4 : 3;
-  }
-
   // ---------- DOM ----------
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
 
   const hudEl = document.getElementById('hud');
   const scoreValueEl = document.getElementById('scoreValue');
-  const livesValueEl = document.getElementById('livesValue');
+  const timeValueEl = document.getElementById('timeValue');
   const coinsValueEl = document.getElementById('coinsValue');
   const pauseBtn = document.getElementById('pauseBtn');
 
@@ -159,30 +164,27 @@
   let state = STATE.MENU;
 
   let score = 0;
-  let lives = 3;
   let coinsEarnedThisRun = 0;
   let balloons = [];
   let particles = [];
   let spawnTimer = 0;
-  let spawnInterval = 1.1; // seconds
+  const SPAWN_INTERVAL = 0.7; // seconds, per game design
+  const RUN_DURATION = 60; // seconds
   let elapsed = 0;
   let lastTime = 0;
   let rafId = null;
 
   const COLORS = ['#ff6b6b', '#ffd93d', '#6bcB77', '#4d96ff', '#c17dff', '#ff9f43'];
-  const BOMB_CHANCE_BASE = 0.12;
 
   class Balloon {
     constructor() {
       this.r = 26 + Math.random() * 16;
       this.x = this.r + Math.random() * (W - this.r * 2);
       this.y = H + this.r + Math.random() * 60;
-      const speedUp = Math.min(elapsed / 60, 1); // difficulty ramps over 60s
-      this.vy = -(60 + Math.random() * 50 + speedUp * 60);
+      this.vy = -(60 + Math.random() * 50);
       this.sway = Math.random() * Math.PI * 2;
       this.swaySpeed = 1 + Math.random() * 1.5;
-      this.isBomb = Math.random() < Math.min(BOMB_CHANCE_BASE + speedUp * 0.1, 0.28);
-      this.golden = !this.isBomb && owned.goldenSkin && Math.random() < 0.15;
+      this.golden = owned.goldenSkin && Math.random() < 0.15;
       this.color = this.golden ? '#ffd700' : COLORS[Math.floor(Math.random() * COLORS.length)];
       this.popped = false;
       this.alive = true;
@@ -191,44 +193,26 @@
       this.y += this.vy * dt;
       this.sway += this.swaySpeed * dt;
       this.x += Math.sin(this.sway) * 18 * dt;
-      if (this.y + this.r < 0) {
-        this.alive = false;
-        if (!this.isBomb) onBalloonEscaped();
-      }
+      if (this.y + this.r < 0) this.alive = false;
     }
     draw() {
       ctx.save();
       ctx.translate(this.x, this.y);
-      if (this.isBomb) {
-        ctx.fillStyle = '#2b2b2b';
-        ctx.beginPath();
-        ctx.arc(0, 0, this.r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#ff4444';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(-this.r * 0.4, -this.r * 0.4);
-        ctx.lineTo(this.r * 0.4, this.r * 0.4);
-        ctx.moveTo(this.r * 0.4, -this.r * 0.4);
-        ctx.lineTo(-this.r * 0.4, this.r * 0.4);
-        ctx.stroke();
-      } else {
-        const grad = ctx.createRadialGradient(-this.r * 0.35, -this.r * 0.35, this.r * 0.1, 0, 0, this.r);
-        grad.addColorStop(0, this.golden ? '#fff6c8' : '#ffffff');
-        grad.addColorStop(1, this.color);
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, this.r * 0.85, this.r, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-        ctx.beginPath();
-        ctx.moveTo(0, this.r);
-        ctx.lineTo(0, this.r + 14);
-        ctx.stroke();
-      }
+      const grad = ctx.createRadialGradient(-this.r * 0.35, -this.r * 0.35, this.r * 0.1, 0, 0, this.r);
+      grad.addColorStop(0, this.golden ? '#fff6c8' : '#ffffff');
+      grad.addColorStop(1, this.color);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, this.r * 0.85, this.r, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.beginPath();
+      ctx.moveTo(0, this.r);
+      ctx.lineTo(0, this.r + 14);
+      ctx.stroke();
       ctx.restore();
     }
     hitTest(px, py) {
@@ -266,44 +250,35 @@
     }
   }
 
-  function onBalloonEscaped() {
-    lives -= 1;
-    updateHud();
-    if (lives <= 0) endGame();
-  }
-
   function pop(balloon, px, py) {
     balloon.popped = true;
     balloon.alive = false;
     for (let i = 0; i < 10; i++) particles.push(new Particle(px, py, balloon.color));
-    if (balloon.isBomb) {
-      lives -= 1;
-      updateHud();
-      if (lives <= 0) { endGame(); return; }
-    } else {
-      const gain = balloon.golden ? 30 : 10;
-      score += gain;
-      const coinGain = balloon.golden ? 3 : 1;
-      coins += coinGain;
-      coinsEarnedThisRun += coinGain;
-      updateHud();
+
+    score += 1;
+    if (score > highscore) {
+      highscore = score;
+      saveHighscore();
     }
+
+    const coinGain = balloon.golden ? 3 : 1;
+    coins += coinGain;
+    coinsEarnedThisRun += coinGain;
+    updateHud();
   }
 
   function updateHud() {
     scoreValueEl.textContent = score;
-    livesValueEl.textContent = Math.max(lives, 0);
+    timeValueEl.textContent = Math.max(Math.ceil(RUN_DURATION - elapsed), 0);
     coinsValueEl.textContent = coins;
   }
 
   function resetRun() {
     score = 0;
-    lives = startingLives();
     coinsEarnedThisRun = 0;
     balloons = [];
     particles = [];
     spawnTimer = 0;
-    spawnInterval = 1.1;
     elapsed = 0;
     updateHud();
   }
@@ -314,7 +289,7 @@
     hudEl.classList.remove('hidden');
     showScreen(null);
     lastTime = performance.now();
-    if (CG && CG.game && CG.game.gameplayStart) CG.game.gameplayStart();
+    if (CG && CG.game && CG.game.gameplayStart) cg(() => CG.game.gameplayStart());
     if (!rafId) rafId = requestAnimationFrame(loop);
   }
 
@@ -326,7 +301,7 @@
       saveHighscore();
     }
     saveCoins();
-    if (CG && CG.game && CG.game.gameplayStop) CG.game.gameplayStop();
+    if (CG && CG.game && CG.game.gameplayStop) cg(() => CG.game.gameplayStop());
     finalScoreEl.textContent = score;
     finalHighscoreEl.textContent = highscore;
     coinsEarnedLineEl.textContent = `+${coinsEarnedThisRun} 🪙 earned`;
@@ -338,9 +313,13 @@
     if (CG && CG.ad && CG.ad.requestAd) {
       state = STATE.AD;
       showScreen(null);
-      CG.ad.requestAd('midgame')
-        .catch(() => {})
-        .finally(() => { onDone(); });
+      try {
+        CG.ad.requestAd('midgame')
+          .catch(() => {})
+          .finally(() => { onDone(); });
+      } catch {
+        onDone();
+      }
       return;
     }
     // Fallback simulated ad break
@@ -369,7 +348,7 @@
     if (state !== STATE.PLAYING) return;
     state = STATE.PAUSED;
     showScreen(pauseScreen);
-    if (CG && CG.game && CG.game.gameplayStop) CG.game.gameplayStop();
+    if (CG && CG.game && CG.game.gameplayStop) cg(() => CG.game.gameplayStop());
   }
 
   function resumeGame() {
@@ -377,7 +356,7 @@
     state = STATE.PLAYING;
     showScreen(null);
     lastTime = performance.now();
-    if (CG && CG.game && CG.game.gameplayStart) CG.game.gameplayStart();
+    if (CG && CG.game && CG.game.gameplayStart) cg(() => CG.game.gameplayStart());
   }
 
   function quitToMenu() {
@@ -423,9 +402,8 @@
 
     elapsed += dt;
     spawnTimer += dt;
-    const currentInterval = Math.max(spawnInterval - elapsed * 0.01, 0.45);
-    if (spawnTimer >= currentInterval) {
-      spawnTimer = 0;
+    if (spawnTimer >= SPAWN_INTERVAL) {
+      spawnTimer -= SPAWN_INTERVAL;
       balloons.push(new Balloon());
     }
 
@@ -438,6 +416,12 @@
     ctx.clearRect(0, 0, W, H);
     for (const b of balloons) b.draw();
     for (const p of particles) p.draw();
+
+    timeValueEl.textContent = Math.max(Math.ceil(RUN_DURATION - elapsed), 0);
+    if (elapsed >= RUN_DURATION) {
+      endGame();
+      return;
+    }
   }
 
   // ---------- UI wiring ----------
@@ -458,6 +442,6 @@
   menuHighscoreEl.textContent = highscore;
   menuCoinsEl.textContent = coins;
   showScreen(menuScreen);
-  if (CG && CG.game && CG.game.sdkGameLoadingStart) CG.game.sdkGameLoadingStart();
-  if (CG && CG.game && CG.game.sdkGameLoadingStop) CG.game.sdkGameLoadingStop();
+  if (CG && CG.game && CG.game.sdkGameLoadingStart) cg(() => CG.game.sdkGameLoadingStart());
+  if (CG && CG.game && CG.game.sdkGameLoadingStop) cg(() => CG.game.sdkGameLoadingStop());
 })();

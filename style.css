@@ -59,7 +59,7 @@ html, body {
   z-index: 5;
 }
 
-.hud-left, .hud-right {
+.hud-left, .hud-right, .hud-center {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -68,6 +68,13 @@ html, body {
   padding: 6px 12px;
   border-radius: 999px;
   pointer-events: auto;
+}
+
+.hud-center {
+  position: absolute;
+  left: 50%;
+  top: max(12px, env(safe-area-inset-top, 0px));
+  transform: translateX(-50%);
 }
 
 .hud-icon { font-size: 1rem; }
